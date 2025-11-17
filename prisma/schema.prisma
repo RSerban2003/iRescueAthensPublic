@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Booking {
+  id                  String   @id @default(cuid())
+  date                DateTime
+  timeSlot            String
+  name                String
+  email               String
+  phone               String
+  address             String?
+  notes               String?
+  status              String   @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  type                String   // "REPAIR" or "PRODUCT"
+  brand               String?  // Phone brand
+  model               String?  // Phone model
+  issues              String?  // JSON array of issues for repairs
+  totalAmount         Float?
+  paymentMethod       String?  // "online" or "instore"
+  paymentStatus       String?  // "PENDING", "PAID", "FAILED"
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PhoneListing {
+  id          String   @id @default(cuid())
+  brand       String
+  model       String
+  price       Float
+  condition   String
+  storage     String
+  description String?
+  images      String   // JSON string of image URLs  
+  status      String   @default("PENDING") // PENDING, APPROVED, SOLD, REJECTED
+  
+  // Contact info
+  name        String
+  email       String
+  phone       String
+  address     String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?  @unique
+  username  String?  @unique
+  password  String?
+  role      String   @default("user") // "user" or "admin"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Add new model for phones available for purchase
+model PhoneForSale {
+  id          String   @id @default(uuid())
+  brand       String
+  model       String
+  price       Float
+  condition   String
+  storage     String
+  color       String
+  description String?
+  images      String   // JSON string of image URLs or file paths
+  year        Int?
+  status      String   @default("AVAILABLE") // AVAILABLE, SOLD, NOT_AVAILABLE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Update the AvailableHours model with correct table name mapping
+model AvailableHours {
+  id        String   @id @default(uuid())
+  hours     String   // Store as simple string instead of JSON array
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("AvailableHours") // Ensure exact match with your database table name
+} 
