@@ -5,95 +5,152 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
-model Booking {
-  id                  String   @id @default(cuid())
-  date                DateTime
-  timeSlot            String
-  name                String
-  email               String
-  phone               String
-  address             String?
-  notes               String?
-  status              String   @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
-  type                String   // "REPAIR" or "PRODUCT"
-  brand               String?  // Phone brand
-  model               String?  // Phone model
-  issues              String?  // JSON array of issues for repairs
-  totalAmount         Float?
-  paymentMethod       String?  // "online" or "instore"
-  paymentStatus       String?  // "PENDING", "PAID", "FAILED"
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+enum Role {
+  USER
+  ADMIN
 }
 
-model AdminUser {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum BookingType {
+  REPAIR
+  PURCHASE
 }
 
-model PhoneListing {
-  id          String   @id @default(cuid())
-  brand       String
-  model       String
-  price       Float
-  condition   String
-  storage     String
-  description String?
-  images      String   // JSON string of image URLs  
-  status      String   @default("PENDING") // PENDING, APPROVED, SOLD, REJECTED
-  
-  // Contact info
-  name        String
-  email       String
-  phone       String
-  address     String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  ONLINE
+  IN_STORE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ListingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SOLD
+}
+
+enum PhoneStatus {
+  AVAILABLE
+  SOLD
+  HIDDEN
+}
+
+enum Condition {
+  LIKE_NEW
+  EXCELLENT
+  GOOD
+  FAIR
 }
 
 model User {
   id        String   @id @default(cuid())
   name      String?
-  email     String?  @unique
-  username  String?  @unique
-  password  String?
-  role      String   @default("user") // "user" or "admin"
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Add new model for phones available for purchase
+/// A customer appointment: either a repair drop-off or a purchase pickup.
+model Booking {
+  id              String         @id @default(cuid())
+  type            BookingType
+  status          BookingStatus  @default(PENDING)
+  date            DateTime       @db.Date
+  timeSlot        String
+  name            String
+  email           String
+  phone           String
+  notes           String?
+  // Repair details
+  brand           String?
+  model           String?
+  issues          String[]       @default([])
+  // Payment
+  totalAmount     Float?
+  paymentMethod   PaymentMethod?
+  paymentStatus   PaymentStatus?
+  stripeSessionId String?
+  // Purchase target
+  phoneForSale    PhoneForSale?  @relation(fields: [phoneForSaleId], references: [id], onDelete: SetNull)
+  phoneForSaleId  String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+/// A device a customer wants to sell to the shop.
+model PhoneListing {
+  id          String        @id @default(cuid())
+  brand       String
+  model       String
+  storage     String
+  condition   Condition
+  description String?
+  askingPrice Float
+  images      String[]      @default([])
+  status      ListingStatus @default(PENDING)
+  // Seller contact
+  name        String
+  email       String
+  phone       String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status])
+}
+
+/// Refurbished inventory offered in the shop.
 model PhoneForSale {
-  id          String   @id @default(uuid())
+  id          String      @id @default(cuid())
   brand       String
   model       String
   price       Float
-  condition   String
+  condition   Condition
   storage     String
   color       String
-  description String?
-  images      String   // JSON string of image URLs or file paths
   year        Int?
-  status      String   @default("AVAILABLE") // AVAILABLE, SOLD, NOT_AVAILABLE
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  description String?
+  images      String[]    @default([])
+  status      PhoneStatus @default(AVAILABLE)
+  bookings    Booking[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([status])
 }
 
-// Update the AvailableHours model with correct table name mapping
-model AvailableHours {
-  id        String   @id @default(uuid())
-  hours     String   // Store as simple string instead of JSON array
+/// A calendar day on which the shop accepts appointments.
+model AvailableDay {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  note      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
-  @@map("AvailableHours") // Ensure exact match with your database table name
-} 
+/// Singleton-ish config row holding the bookable time slots.
+model AvailabilityConfig {
+  id        String   @id @default(cuid())
+  slots     String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

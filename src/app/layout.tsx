@@ -1,40 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import ThemeProvider from "@/components/ThemeProvider";
-import SessionProvider from "@/components/SessionProvider";
+import { Inter, Space_Grotesk } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { SITE } from "@/lib/site";
+import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" });
 
 export const metadata: Metadata = {
-  title: "iRescue - Phone Repair & Service",
-  description: "Professional phone repair services, sales, and support",
-  icons: "/irescue-logo.png",
+  title: {
+    default: `${SITE.name} — ${SITE.tagline}`,
+    template: `%s — ${SITE.name}`,
+  },
+  description:
+    "Book a phone repair, buy a quality refurbished device, or sell your old phone. Fast turnaround, transparent prices, 6-month repair warranty.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider>
-          <SessionProvider>{children}</SessionProvider>
-          <Toaster position="top-center" />
-        </ThemeProvider>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <body className="font-sans">
+        {children}
+        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
       </body>
     </html>
   );

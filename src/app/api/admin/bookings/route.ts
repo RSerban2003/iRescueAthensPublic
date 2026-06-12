@@ -1,23 +1,32 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdmin, serverError } from "@/lib/api";
 
-// Make this route static for static export
-export const dynamic = 'force-dynamic';
+/** Admin: list bookings, optionally filtered by ?status= and ?type=. */
+export async function GET(request: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
 
-export async function GET() {
   try {
+    const params = new URL(request.url).searchParams;
+    const status = params.get("status");
+    const type = params.get("type");
+
     const bookings = await prisma.booking.findMany({
-      orderBy: {
-        date: 'desc',
+      where: {
+        ...(status && ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"].includes(status)
+          ? { status: status as "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" }
+          : {}),
+        ...(type && ["REPAIR", "PURCHASE"].includes(type)
+          ? { type: type as "REPAIR" | "PURCHASE" }
+          : {}),
       },
+      include: { phoneForSale: { select: { brand: true, model: true, storage: true } } },
+      orderBy: [{ date: "desc" }, { timeSlot: "asc" }],
     });
-    
+
     return NextResponse.json({ bookings });
   } catch (error) {
-    console.error('Error fetching bookings:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch bookings' },
-      { status: 500 }
-    );
+    return serverError(error, "Failed to load bookings");
   }
-} 
+}

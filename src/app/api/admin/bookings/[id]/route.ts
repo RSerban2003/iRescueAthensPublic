@@ -1,47 +1,44 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { parseBody, requireAdmin, serverError, notFound } from "@/lib/api";
+import { bookingUpdateSchema } from "@/lib/validation";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+/** Admin: update a booking's status or notes. */
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+
+  const parsed = await parseBody(request, bookingUpdateSchema);
+  if (!parsed.ok) return parsed.response;
+  const { id } = await params;
+
   try {
-    const { id } = params;
-    const { status, notes } = await request.json();
+    const existing = await prisma.booking.findUnique({ where: { id } });
+    if (!existing) return notFound("Booking not found");
 
-    // Validate status
-    if (status && !['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status value' },
-        { status: 400 }
-      );
-    }
-
-    // Prepare update data
-    const updateData: { status?: string; notes?: string } = {};
-    if (status) updateData.status = status;
-    if (notes !== undefined) updateData.notes = notes;
-
-    // Validate that we have something to update
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'No valid fields to update' },
-        { status: 400 }
-      );
-    }
-
-    // Update booking
-    const updatedBooking = await prisma.booking.update({
+    const booking = await prisma.booking.update({
       where: { id },
-      data: updateData
+      data: {
+        ...(parsed.data.status ? { status: parsed.data.status } : {}),
+        ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
+      },
     });
 
-    return NextResponse.json({ booking: updatedBooking });
+    // Completing a paid-online purchase keeps the phone sold; completing an
+    // in-store purchase marks the reserved phone as sold now.
+    if (
+      booking.type === "PURCHASE" &&
+      booking.phoneForSaleId &&
+      parsed.data.status === "COMPLETED"
+    ) {
+      await prisma.phoneForSale.update({
+        where: { id: booking.phoneForSaleId },
+        data: { status: "SOLD" },
+      });
+    }
+
+    return NextResponse.json({ booking });
   } catch (error) {
-    console.error('Error updating booking:', error);
-    return NextResponse.json(
-      { error: 'Failed to update booking' },
-      { status: 500 }
-    );
+    return serverError(error, "Failed to update the booking");
   }
-} 
+}
